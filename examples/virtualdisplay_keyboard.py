@@ -29,11 +29,12 @@ import termios
 import tty
 from subprocess import Popen, run
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import click
 import numpy as np
 import piomatter_click
 from pyvirtualdisplay.smartdisplay import SmartDisplay
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
 keyboard_debug = False
 keys_down = set()

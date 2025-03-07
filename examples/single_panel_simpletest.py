@@ -11,9 +11,10 @@ $ python simpletest.py
 
 """
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import numpy as np
 from PIL import Image, ImageDraw
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
 width = 64
 height = 32

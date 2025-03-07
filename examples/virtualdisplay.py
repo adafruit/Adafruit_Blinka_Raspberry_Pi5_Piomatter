@@ -26,11 +26,12 @@ Here's an example for running an emulator using a rom stored in "/tmp/snesrom.sm
 import shlex
 from subprocess import Popen
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import click
 import numpy as np
-import piomatter_click
 from pyvirtualdisplay.smartdisplay import SmartDisplay
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
 
 
 @click.command

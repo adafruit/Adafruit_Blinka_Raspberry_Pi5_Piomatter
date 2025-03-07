@@ -12,10 +12,11 @@ For help with commandline arguments, run `python fbmirror.py --help`
 """
 
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import click
 import numpy as np
-import piomatter_click
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
+import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
 
 with open("/sys/class/graphics/fb0/virtual_size") as f:
     screenx, screeny = [int(word) for word in f.read().split(",")]

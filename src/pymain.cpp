@@ -1,5 +1,6 @@
 #include <iostream>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
 
 #include "piomatter/piomatter.h"
@@ -33,6 +34,14 @@ make_piomatter_pc(py::buffer buffer,
     const py::buffer_info info = buffer.request();
     const size_t buffer_size_in_bytes = info.size * info.itemsize;
 
+    if (geometry.n_lanes * 3 > std::size(pinout::PIN_RGB)) {
+        throw std::runtime_error(
+            py::str("Geometry lane count {} exceeds the pinout with {} rgb "
+                    "pins ({} lanes)")
+                .attr("format")(geometry.n_lanes, std::size(pinout::PIN_RGB),
+                                std::size(pinout::PIN_RGB) / 3)
+                .template cast<std::string>());
+    }
     if (buffer_size_in_bytes != data_size_in_bytes) {
         throw std::runtime_error(
             py::str("Framebuffer size must be {} bytes ({} elements of {} "
@@ -54,6 +63,8 @@ enum Colorspace { RGB565, RGB888, RGB888Packed };
 enum Pinout {
     AdafruitMatrixBonnet,
     AdafruitMatrixBonnetBGR,
+    Active3,
+    Active3BGR,
 };
 
 template <class pinout>
@@ -70,12 +81,10 @@ make_piomatter_p(Colorspace c, py::buffer buffer,
     case RGB888Packed:
         return make_piomatter_pc<pinout, piomatter::colorspace_rgb888_packed>(
             buffer, geometry);
-
-    default:
-        throw std::runtime_error(py::str("Invalid colorspace {!r}")
-                                     .attr("format")(c)
-                                     .template cast<std::string>());
     }
+    throw std::runtime_error(py::str("Invalid colorspace {!r}")
+                                 .attr("format")(c)
+                                 .template cast<std::string>());
 }
 
 std::unique_ptr<PyPiomatter>
@@ -88,15 +97,19 @@ make_piomatter(Colorspace c, Pinout p, py::buffer buffer,
     case AdafruitMatrixBonnetBGR:
         return make_piomatter_p<piomatter::adafruit_matrix_bonnet_pinout_bgr>(
             c, buffer, geometry);
-    default:
-        throw std::runtime_error(py::str("Invalid pinout {!r}")
-                                     .attr("format")(p)
-                                     .template cast<std::string>());
+    case Active3:
+        return make_piomatter_p<piomatter::active3_pinout>(c, buffer, geometry);
+    case Active3BGR:
+        return make_piomatter_p<piomatter::active3_pinout_bgr>(c, buffer,
+                                                               geometry);
     }
+    throw std::runtime_error(py::str("Invalid pinout {!r}")
+                                 .attr("format")(p)
+                                 .template cast<std::string>());
 }
 } // namespace
 
-PYBIND11_MODULE(adafruit_blinka_raspberry_pi5_piomatter, m) {
+PYBIND11_MODULE(_piomatter, m) {
     py::options options;
     options.enable_enum_members_docstring();
     options.enable_function_signatures();
@@ -138,7 +151,10 @@ PYBIND11_MODULE(adafruit_blinka_raspberry_pi5_piomatter, m) {
         .value("AdafruitMatrixHat", Pinout::AdafruitMatrixBonnet,
                "Adafruit Matrix Bonnet or Matrix Hat")
         .value("AdafruitMatrixHatBGR", Pinout::AdafruitMatrixBonnetBGR,
-               "Adafruit Matrix Bonnet or Matrix Hat with BGR color order");
+               "Adafruit Matrix Bonnet or Matrix Hat with BGR color order")
+        .value("Active3", Pinout::Active3, "Active-3 or compatible board")
+        .value("Active3BGR", Pinout::Active3BGR,
+               "Active-3 or compatible board with BGR color order");
 
     py::enum_<Colorspace>(
         m, "Colorspace",
@@ -209,6 +225,22 @@ The default, 10, is the maximum value.
              py::arg("serpentine") = true,
              py::arg("rotation") = piomatter::orientation::normal,
              py::arg("n_planes") = 10u)
+        .def(py::init([](size_t width, size_t height, size_t n_addr_lines,
+                         piomatter::matrix_map map, size_t n_planes,
+                         size_t n_lanes) {
+                 size_t n_lines = n_lanes << n_addr_lines;
+                 size_t pixels_across = width * height / n_lines;
+                 for (auto el : map) {
+                     if ((size_t)el >= width * height) {
+                         throw std::out_of_range("Map element out of range");
+                     }
+                 }
+                 return piomatter::matrix_geometry(pixels_across, n_addr_lines,
+                                                   n_planes, width, height, map,
+                                                   n_lanes);
+             }),
+             py::arg("width"), py::arg("height"), py::arg("n_addr_lines"),
+             py::arg("map"), py::arg("n_planes") = 10u, py::arg("n_lanes") = 2)
         .def_readonly("width", &piomatter::matrix_geometry::width)
         .def_readonly("height", &piomatter::matrix_geometry::height);
 

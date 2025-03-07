@@ -11,9 +11,10 @@ The animated gif is played repeatedly until interrupted with ctrl-c.
 
 import time
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import numpy as np
 import PIL.Image as Image
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
 width = 64
 height = 32

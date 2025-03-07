@@ -17,26 +17,48 @@ from PIL import Image, ImageDraw
 import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
 width = 64
-height = 32
+n_lanes = 6
+n_addr_lines = 5
+height = n_lanes << n_addr_lines
 pen_radius = 1
+
+def make_pixelmap_multilane(width, height, n_addr_lines, n_lanes):
+    calc_height = n_lanes << n_addr_lines
+    if height != calc_height:
+        raise RuntimeError(f"Calculated height {calc_height} does not match requested height {height}")
+    n_addr = 1 << n_addr_lines
+
+    m = []
+    for addr in range(n_addr):
+        for x in range(width):
+            for lane in range(n_lanes):
+                y = addr + lane * n_addr
+                m.append(x + width * y)
+    print(m)
+    return m
 
 
 canvas = Image.new('RGB', (width, height), (0, 0, 0))
 draw = ImageDraw.Draw(canvas)
 
-geometry = piomatter.Geometry(width=width, height=height, n_addr_lines=4,
-                                                     rotation=piomatter.Orientation.Normal)
+pixelmap = make_pixelmap_multilane(width, height, n_addr_lines, n_lanes)
+geometry = piomatter.Geometry(width=width, height=height, n_addr_lines=n_addr_lines, n_planes=8, map=pixelmap, n_lanes=n_lanes)
 framebuffer = np.asarray(canvas) + 0  # Make a mutable copy
 matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed,
-                             pinout=piomatter.Pinout.AdafruitMatrixBonnet,
+                             pinout=piomatter.Pinout.Active3,
                              framebuffer=framebuffer,
                              geometry=geometry)
 
 color_index = 0
 
+update_interval = 3
+update_counter = 0
 def update_matrix():
-    framebuffer[:] = np.asarray(canvas)
-    matrix.show()
+    global update_counter
+    if (update_counter := update_counter + 1) >= update_interval:
+        framebuffer[:] = np.asarray(canvas)
+        matrix.show()
+        update_counter = 0
 
 def darken_color(hex_color, darkness_factor):
     # Convert hex color number to RGB

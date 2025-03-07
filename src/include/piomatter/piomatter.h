@@ -52,11 +52,12 @@ struct piomatter : piomatter_base {
     piomatter(std::span<typename colorspace::data_type const> framebuffer,
               const matrix_geometry &geometry)
         : framebuffer(framebuffer), geometry{geometry}, converter{},
-          blitter_thread{&piomatter::blit_thread, this} {
+          blitter_thread{} {
         if (geometry.n_addr_lines > std::size(pinout::PIN_ADDR)) {
             throw std::runtime_error("too many address lines requested");
         }
         program_init();
+        blitter_thread = std::move(std::thread{&piomatter::blit_thread, this});
         show();
     }
 
