@@ -132,6 +132,7 @@ struct colorspace_rgb10 {
 template <typename pinout>
 void protomatter_render_rgb10(std::vector<uint32_t> &result,
                               const matrix_geometry &matrixmap,
+                              const schedule &sched, uint32_t old_active_time,
                               const uint32_t *pixels) {
     result.clear();
 
@@ -153,7 +154,7 @@ void protomatter_render_rgb10(std::vector<uint32_t> &result,
         data_count = n;
     };
 
-    int32_t active_time;
+    int32_t active_time = old_active_time;
 
     auto do_data_clk_active = [&active_time, &data_count, &result](uint32_t d) {
         bool active = active_time > 0;
@@ -183,68 +184,42 @@ void protomatter_render_rgb10(std::vector<uint32_t> &result,
         return data;
     };
 
-    auto add_pixels = [&do_data_clk_active,
-                       &result](uint32_t addr_bits, bool r0, bool g0, bool b0,
-                                bool r1, bool g1, bool b1) {
-        uint32_t data = addr_bits;
-        if (r0)
-            data |= (1 << pinout::PIN_RGB[0]);
-        if (g0)
-            data |= (1 << pinout::PIN_RGB[1]);
-        if (b0)
-            data |= (1 << pinout::PIN_RGB[2]);
-        if (r1)
-            data |= (1 << pinout::PIN_RGB[3]);
-        if (g1)
-            data |= (1 << pinout::PIN_RGB[4]);
-        if (b1)
-            data |= (1 << pinout::PIN_RGB[5]);
-
-        do_data_clk_active(data);
-    };
-
-    int last_bit = 0;
     // illuminate the right row for data in the shift register (the previous
     // address)
 
     const size_t n_addr = 1u << matrixmap.n_addr_lines;
-    const int n_planes = matrixmap.n_planes;
-    constexpr size_t n_bits = 10u;
-    unsigned offset = n_bits - n_planes;
     const size_t pixels_across = matrixmap.pixels_across;
 
     size_t prev_addr = n_addr - 1;
     uint32_t addr_bits = calc_addr_bits(prev_addr);
 
     for (size_t addr = 0; addr < n_addr; addr++) {
-        // printf("addr=%zu/%zu\n", addr, n_addr);
-        for (int bit = n_planes - 1; bit >= 0; bit--) {
-            // printf("bit=%d/%d\n", bit, n_planes);
-            uint32_t r = 1 << (20 + offset + bit);
-            uint32_t g = 1 << (10 + offset + bit);
-            uint32_t b = 1 << (0 + offset + bit);
-
-            // the shortest /OE we can do is one DATA_OVERHEAD...
-            // TODO: should make sure desired duration of MSB is at least
-            // `pixels_across`
-            active_time = 1 << last_bit;
-            last_bit = bit;
+        for (auto &schedule_ent : sched) {
+            uint32_t r_mask = 1 << (20 + schedule_ent.shift);
+            uint32_t g_mask = 1 << (10 + schedule_ent.shift);
+            uint32_t b_mask = 1 << (0 + schedule_ent.shift);
 
             prep_data(pixels_across);
-            auto mapiter = matrixmap.map.begin() + 2 * addr * pixels_across;
+            auto mapiter = matrixmap.map.begin() +
+                           matrixmap.n_lanes * addr * pixels_across;
             for (size_t x = 0; x < pixels_across; x++) {
-                assert(mapiter != matrixmap.map.end());
-                auto pixel0 = pixels[*mapiter++];
-                auto r0 = pixel0 & r;
-                auto g0 = pixel0 & g;
-                auto b0 = pixel0 & b;
-                assert(mapiter != matrixmap.map.end());
-                auto pixel1 = pixels[*mapiter++];
-                auto r1 = pixel1 & r;
-                auto g1 = pixel1 & g;
-                auto b1 = pixel1 & b;
+                uint32_t data = addr_bits;
+                for (size_t px = 0; px < matrixmap.n_lanes; px++) {
+                    assert(mapiter != matrixmap.map.end());
+                    auto pixel0 = pixels[*mapiter++];
+                    auto r_bit = pixel0 & r_mask;
+                    auto g_bit = pixel0 & g_mask;
+                    auto b_bit = pixel0 & b_mask;
 
-                add_pixels(addr_bits, r0, g0, b0, r1, g1, b1);
+                    if (r_bit)
+                        data |= (1 << pinout::PIN_RGB[px * 3 + 0]);
+                    if (g_bit)
+                        data |= (1 << pinout::PIN_RGB[px * 3 + 1]);
+                    if (b_bit)
+                        data |= (1 << pinout::PIN_RGB[px * 3 + 2]);
+                }
+
+                do_data_clk_active(data);
             }
 
             do_data_delay(addr_bits | pinout::oe_active,
@@ -255,6 +230,8 @@ void protomatter_render_rgb10(std::vector<uint32_t> &result,
                           pinout::post_oe_delay);
             do_data_delay(addr_bits | pinout::oe_inactive | pinout::lat_bit,
                           pinout::post_latch_delay);
+
+            active_time = schedule_ent.active_time;
 
             // with oe inactive, set address bits to illuminate THIS line
             if (addr != prev_addr) {

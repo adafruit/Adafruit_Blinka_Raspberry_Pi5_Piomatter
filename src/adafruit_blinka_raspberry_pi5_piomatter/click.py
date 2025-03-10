@@ -5,8 +5,9 @@
 from collections.abc import Callable
 from typing import Any
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import click
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
 
 class PybindEnumChoice(click.Choice):
@@ -25,6 +26,11 @@ class PybindEnumChoice(click.Choice):
         r = getattr(self.enum, value)
         return r
 
+def validate_temporal_planes(ctx, param, value):
+    if value not in (0, 2, 4):
+        raise click.BadParameter("must be 0, 2, or 4")
+    return value
+
 def standard_options(
     f: click.decorators.FC | None = None,
     *,
@@ -34,7 +40,9 @@ def standard_options(
     rotation=piomatter.Orientation.Normal,
     pinout=piomatter.Pinout.AdafruitMatrixBonnet,
     n_planes=10,
+    n_temporal_planes=None,
     n_addr_lines=4,
+    n_lanes=None,
 ) -> Callable[[], None]:
     """Add standard commandline flags, with the defaults given
 
@@ -73,9 +81,13 @@ def standard_options(
                 help="The overall orientation (rotation) of the panels"
             )(f)
         if n_planes is not None:
-            f = click.option("--num-planes", "n_planes", default=n_planes, help="The number of bit planes (color depth. Lower values can improve refresh rate in frames per second")(f)
+            f = click.option("--num-planes", "n_planes", default=n_planes, help="The number of bit planes (color depth). Lower values can improve refresh rate in frames per second")(f)
+        if n_temporal_planes is not None:
+            f = click.option("--num-temporal-planes", "n_temporal_planes", default=n_temporal_planes, callback=validate_temporal_planes, help="The number of temporal bit-planes. May be 0, 2, or 4. Nonzero values improve frame rate but can cause some shimmer")(f)
         if n_addr_lines is not None:
             f = click.option("--num-address-lines", "n_addr_lines", default=n_addr_lines, help="The number of address lines used by the panels")(f)
+        if n_lanes is not None:
+            f = click.option("--num-lanes", "n_lanes", default=n_lanes, help="The number of lanes used by the panels. One 16-pin connector has two lanes (6 RGB pins)")(f)
         return f
     if f is None:
         return wrapper

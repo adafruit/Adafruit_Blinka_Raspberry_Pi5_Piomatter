@@ -14,10 +14,11 @@ $ python quote_scroller.py
 
 """
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import numpy as np
 import requests
 from PIL import Image, ImageDraw, ImageFont
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
 # 128px for 2x1 matrices. Change to 64 if you're using a single matrix.
 total_width = 128

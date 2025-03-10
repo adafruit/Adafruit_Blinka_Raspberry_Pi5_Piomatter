@@ -95,10 +95,56 @@ static uint64_t monotonicns64() {
     return tp.tv_sec * UINT64_C(1000000000) + tp.tv_nsec;
 }
 
+static void print_dither_schedule(const piomatter::schedule_sequence &ss) {
+    for (auto s : ss) {
+        for (auto i : s) {
+            printf("{%d %d} ", i.shift, i.active_time);
+        }
+        printf("\n");
+    }
+    printf("\n");
+}
+
+static void test_simple_dither_schedule(int n_planes, int pixels_across) {
+    auto ss = piomatter::make_simple_schedule(n_planes, pixels_across);
+    print_dither_schedule(ss);
+}
+static void test_temporal_dither_schedule(int n_planes, int pixels_across,
+                                          int n_temporal_frames) {
+    auto ss = piomatter::make_temporal_dither_schedule(n_planes, pixels_across,
+                                                       n_temporal_frames);
+    print_dither_schedule(ss);
+}
+
 int main(int argc, char **argv) {
     int n = argc > 1 ? atoi(argv[1]) : 0;
 
-    piomatter::matrix_geometry geometry(128, 4, 10, 64, 64, true,
+    test_simple_dither_schedule(5, 1);
+    test_temporal_dither_schedule(5, 1, 0);
+    test_temporal_dither_schedule(5, 1, 2);
+    test_temporal_dither_schedule(5, 1, 4);
+
+    test_simple_dither_schedule(6, 1);
+    test_temporal_dither_schedule(6, 1, 0);
+    test_temporal_dither_schedule(6, 1, 2);
+    test_temporal_dither_schedule(6, 1, 4);
+
+    test_simple_dither_schedule(5, 16);
+    test_temporal_dither_schedule(5, 16, 2);
+    test_temporal_dither_schedule(5, 16, 4);
+
+    test_simple_dither_schedule(5, 24);
+    test_temporal_dither_schedule(5, 24, 2);
+    test_temporal_dither_schedule(5, 24, 4);
+
+    test_simple_dither_schedule(10, 24);
+    test_temporal_dither_schedule(10, 24, 8);
+
+    test_temporal_dither_schedule(5, 128, 4);
+    test_temporal_dither_schedule(5, 192, 4);
+    return 0;
+
+    piomatter::matrix_geometry geometry(128, 4, 10, 0, 64, 64, true,
                                         piomatter::orientation_normal);
     piomatter::piomatter p(std::span(&pixels[0][0], 64 * 64), geometry);
 

@@ -3,7 +3,7 @@
 const int protomatter_wrap = 4;
 const int protomatter_wrap_target = 0;
 const int protomatter_sideset_pin_count = 1;
-const bool protomatter_sideset_enable = true;
+const bool protomatter_sideset_enable = 1;
 const uint16_t protomatter[] = {
     // ; data format (out-shift-right):
     // ; MSB ... LSB

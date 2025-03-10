@@ -13,9 +13,10 @@ import glob
 import sys
 import time
 
-import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import numpy as np
 import PIL.Image as Image
+
+import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
 images = sorted(glob.glob(sys.argv[1]))
 

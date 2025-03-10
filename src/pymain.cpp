@@ -1,5 +1,6 @@
 #include <iostream>
 #include <pybind11/pybind11.h>
+#include <pybind11/stl.h>
 #include <string>
 
 #include "piomatter/piomatter.h"
@@ -33,6 +34,14 @@ make_piomatter_pc(py::buffer buffer,
     const py::buffer_info info = buffer.request();
     const size_t buffer_size_in_bytes = info.size * info.itemsize;
 
+    if (geometry.n_lanes * 3 > std::size(pinout::PIN_RGB)) {
+        throw std::runtime_error(
+            py::str("Geometry lane count {} exceeds the pinout with {} rgb "
+                    "pins ({} lanes)")
+                .attr("format")(geometry.n_lanes, std::size(pinout::PIN_RGB),
+                                std::size(pinout::PIN_RGB) / 3)
+                .template cast<std::string>());
+    }
     if (buffer_size_in_bytes != data_size_in_bytes) {
         throw std::runtime_error(
             py::str("Framebuffer size must be {} bytes ({} elements of {} "
@@ -54,6 +63,8 @@ enum Colorspace { RGB565, RGB888, RGB888Packed };
 enum Pinout {
     AdafruitMatrixBonnet,
     AdafruitMatrixBonnetBGR,
+    Active3,
+    Active3BGR,
 };
 
 template <class pinout>
@@ -70,12 +81,10 @@ make_piomatter_p(Colorspace c, py::buffer buffer,
     case RGB888Packed:
         return make_piomatter_pc<pinout, piomatter::colorspace_rgb888_packed>(
             buffer, geometry);
-
-    default:
-        throw std::runtime_error(py::str("Invalid colorspace {!r}")
-                                     .attr("format")(c)
-                                     .template cast<std::string>());
     }
+    throw std::runtime_error(py::str("Invalid colorspace {!r}")
+                                 .attr("format")(c)
+                                 .template cast<std::string>());
 }
 
 std::unique_ptr<PyPiomatter>
@@ -88,15 +97,19 @@ make_piomatter(Colorspace c, Pinout p, py::buffer buffer,
     case AdafruitMatrixBonnetBGR:
         return make_piomatter_p<piomatter::adafruit_matrix_bonnet_pinout_bgr>(
             c, buffer, geometry);
-    default:
-        throw std::runtime_error(py::str("Invalid pinout {!r}")
-                                     .attr("format")(p)
-                                     .template cast<std::string>());
+    case Active3:
+        return make_piomatter_p<piomatter::active3_pinout>(c, buffer, geometry);
+    case Active3BGR:
+        return make_piomatter_p<piomatter::active3_pinout_bgr>(c, buffer,
+                                                               geometry);
     }
+    throw std::runtime_error(py::str("Invalid pinout {!r}")
+                                 .attr("format")(p)
+                                 .template cast<std::string>());
 }
 } // namespace
 
-PYBIND11_MODULE(adafruit_blinka_raspberry_pi5_piomatter, m) {
+PYBIND11_MODULE(_piomatter, m) {
     py::options options;
     options.enable_enum_members_docstring();
     options.enable_function_signatures();
@@ -138,7 +151,10 @@ PYBIND11_MODULE(adafruit_blinka_raspberry_pi5_piomatter, m) {
         .value("AdafruitMatrixHat", Pinout::AdafruitMatrixBonnet,
                "Adafruit Matrix Bonnet or Matrix Hat")
         .value("AdafruitMatrixHatBGR", Pinout::AdafruitMatrixBonnetBGR,
-               "Adafruit Matrix Bonnet or Matrix Hat with BGR color order");
+               "Adafruit Matrix Bonnet or Matrix Hat with BGR color order")
+        .value("Active3", Pinout::Active3, "Active-3 or compatible board")
+        .value("Active3BGR", Pinout::Active3BGR,
+               "Active-3 or compatible board with BGR color order");
 
     py::enum_<Colorspace>(
         m, "Colorspace",
@@ -157,19 +173,33 @@ Describe the geometry of a set of panels
 
 The number of pixels in the shift register is automatically computed from these values.
 
+``n_planes`` controls the color depth of the panel. This is separate from the framebuffer
+layout. Decreasing ``n_planes`` can increase FPS at the cost of reduced color fidelity.
+The default, 10, is the maximum value.
+
+``n_temporal_planes`` controls temporal dithering of the panel. The acceptable values
+are 0 (the default), 2, and 4. A higher setting can increase FPS at the cost of
+slightly increasing the variation of brightness across subsequent frames.
+
+For simple panels with just 1 connector (2 color lanes), the following constructor arguments are available:
+
 ``serpentine`` controls the arrangement of multiple panels when they are stacked in rows.
 If it is `True`, then each row goes in the opposite direction of the previous row.
+If this is specified, ``n_lanes`` cannot be, and 2 lanes are always used.
 
 ``rotation`` controls the orientation of the panel(s). Must be one of the ``Orientation``
 constants. Default is ``Orientation.Normal``.
 
-``n_planes`` controls the color depth of the panel. This is separate from the framebuffer
-layout. Decreasing ``n_planes`` can increase FPS at the cost of reduced color fidelity.
-The default, 10, is the maximum value.
+For panels with more than 2 lanes, or using a custom pixel mapping, the following constructor arguments are available:
+
+``n_lanes`` controls how many color lanes are used. A single 16-pin HUB75 connector has 2 color lanes.
+If 2 or 3 connectors are used, then there are 4 or 6 lanes.
+
+``map`` is a Python list of integers giving the framebuffer pixel indices for each matrix pixel.
 )pbdoc")
         .def(py::init([](size_t width, size_t height, size_t n_addr_lines,
                          bool serpentine, piomatter::orientation rotation,
-                         size_t n_planes) {
+                         size_t n_planes, size_t n_temporal_planes) {
                  size_t n_lines = 2 << n_addr_lines;
                  size_t pixels_across = width * height / n_lines;
                  size_t odd = (width * height) % n_lines;
@@ -185,30 +215,51 @@ The default, 10, is the maximum value.
                  switch (rotation) {
                  case piomatter::orientation::normal:
                      return piomatter::matrix_geometry(
-                         pixels_across, n_addr_lines, n_planes, width, height,
-                         serpentine, piomatter::orientation_normal);
+                         pixels_across, n_addr_lines, n_planes,
+                         n_temporal_planes, width, height, serpentine,
+                         piomatter::orientation_normal);
 
                  case piomatter::orientation::r180:
                      return piomatter::matrix_geometry(
-                         pixels_across, n_addr_lines, n_planes, width, height,
-                         serpentine, piomatter::orientation_r180);
+                         pixels_across, n_addr_lines, n_planes,
+                         n_temporal_planes, width, height, serpentine,
+                         piomatter::orientation_r180);
 
                  case piomatter::orientation::ccw:
                      return piomatter::matrix_geometry(
-                         pixels_across, n_addr_lines, n_planes, width, height,
-                         serpentine, piomatter::orientation_ccw);
+                         pixels_across, n_addr_lines, n_planes,
+                         n_temporal_planes, width, height, serpentine,
+                         piomatter::orientation_ccw);
 
                  case piomatter::orientation::cw:
                      return piomatter::matrix_geometry(
-                         pixels_across, n_addr_lines, n_planes, width, height,
-                         serpentine, piomatter::orientation_cw);
+                         pixels_across, n_addr_lines, n_planes,
+                         n_temporal_planes, width, height, serpentine,
+                         piomatter::orientation_cw);
                  }
                  throw std::runtime_error("invalid rotation");
              }),
              py::arg("width"), py::arg("height"), py::arg("n_addr_lines"),
              py::arg("serpentine") = true,
              py::arg("rotation") = piomatter::orientation::normal,
-             py::arg("n_planes") = 10u)
+             py::arg("n_planes") = 10u, py::arg("n_temporal_planes") = 2)
+        .def(py::init([](size_t width, size_t height, size_t n_addr_lines,
+                         piomatter::matrix_map map, size_t n_planes,
+                         size_t n_temporal_planes, size_t n_lanes) {
+                 size_t n_lines = n_lanes << n_addr_lines;
+                 size_t pixels_across = width * height / n_lines;
+                 for (auto el : map) {
+                     if ((size_t)el >= width * height) {
+                         throw std::out_of_range("Map element out of range");
+                     }
+                 }
+                 return piomatter::matrix_geometry(pixels_across, n_addr_lines,
+                                                   n_planes, n_temporal_planes,
+                                                   width, height, map, n_lanes);
+             }),
+             py::arg("width"), py::arg("height"), py::arg("n_addr_lines"),
+             py::arg("map"), py::arg("n_planes") = 10u,
+             py::arg("n_temporal_planes") = 0u, py::arg("n_lanes") = 2)
         .def_readonly("width", &piomatter::matrix_geometry::width)
         .def_readonly("height", &piomatter::matrix_geometry::height);
 
