@@ -21,6 +21,7 @@ This example command will mirror a 128x128 pixel square from the top left of the
 import click
 import numpy as np
 from PIL import ImageGrab
+
 import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
 
@@ -29,11 +30,17 @@ import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
 @click.option("--mirror-region", help="Region of X display to mirror. Comma seperated x,y,w,h. "
                                       "Default will mirror entire display.", default="")
 @click.option("--x-display", help="The X display to mirror. Default is :0", default=":0")
-@piomatter_click.standard_options(n_temporal_planes=0)
+@piomatter_click.standard_options(n_lanes=2, n_temporal_planes=0)
 def main(width, height, serpentine, rotation, pinout, n_planes,
-         n_temporal_planes, n_addr_lines, mirror_region, x_display):
-    geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
-                                  rotation=rotation, serpentine=serpentine, n_temporal_planes=n_temporal_planes)
+         n_temporal_planes, n_addr_lines, n_lanes, mirror_region, x_display):
+    if n_lanes != 2:
+        pixelmap = piomatter.make_pixelmap_multilane(width, height, n_addr_lines, n_lanes)
+        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
+                                      n_temporal_planes=n_temporal_planes, rotation=rotation, n_lanes=n_lanes, map=pixelmap)
+    else:
+        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
+                                      n_temporal_planes=n_temporal_planes, rotation=rotation)
+
     framebuffer = np.zeros(shape=(geometry.height, geometry.width, 3), dtype=np.uint8)
     matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed, pinout=pinout, framebuffer=framebuffer,
                                  geometry=geometry)

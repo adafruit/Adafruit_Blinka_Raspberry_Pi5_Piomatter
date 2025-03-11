@@ -65,9 +65,16 @@ linux_framebuffer = np.memmap('/dev/fb0',mode='r', shape=(screeny, stride // byt
 @click.option("--x-offset", "xoffset", type=int, help="The x offset of top left corner of the region to mirror",  default=0)
 @click.option("--y-offset", "yoffset", type=int, help="The y offset of top left corner of the region to mirror", default=0)
 @click.option("--scale", "scale", type=int, help="The scale factor to reduce the display down by.", default=3)
-@piomatter_click.standard_options
-def main(xoffset, yoffset, scale, width, height, serpentine, rotation, pinout, n_planes, n_addr_lines):
-    geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines, rotation=rotation)
+@piomatter_click.standard_options(n_lanes=2, n_temporal_planes=4)
+def main(xoffset, yoffset, scale, width, height, serpentine, rotation, pinout, n_planes, n_temporal_planes, n_addr_lines, n_lanes):
+    if n_lanes != 2:
+        pixelmap = piomatter.make_pixelmap_multilane(width, height, n_addr_lines, n_lanes)
+        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
+                                      n_temporal_planes=n_temporal_planes, rotation=rotation, n_lanes=n_lanes, map=pixelmap)
+    else:
+        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
+                                      n_temporal_planes=n_temporal_planes, rotation=rotation)
+
     matrix_framebuffer = np.zeros(shape=(geometry.height, geometry.width, 3), dtype=np.uint8)
     matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed, pinout=pinout, framebuffer=matrix_framebuffer, geometry=geometry)
 

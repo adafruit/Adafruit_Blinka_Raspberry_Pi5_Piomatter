@@ -34,29 +34,16 @@ with open("/sys/class/graphics/fb0/stride") as f:
 
 linux_framebuffer = np.memmap('/dev/fb0',mode='r', shape=(screeny, stride // bytes_per_pixel), dtype=dtype)
 
-def make_pixelmap_multilane(width, height, n_addr_lines, n_lanes):
-    calc_height = n_lanes << n_addr_lines
-    if height != calc_height:
-        raise RuntimeError(f"Calculated height {calc_height} does not match requested height {height}")
-    n_addr = 1 << n_addr_lines
-
-    m = []
-    for addr in range(n_addr):
-        for x in range(width):
-            for lane in range(n_lanes):
-                y = addr + lane * n_addr
-                m.append(x + width * y)
-    print(m)
-    return m
-
 @click.command
 @click.option("--x-offset", "xoffset", type=int, help="The x offset of top left corner of the region to mirror",  default=0)
 @click.option("--y-offset", "yoffset", type=int, help="The y offset of top left corner of the region to mirror", default=0)
 @piomatter_click.standard_options(n_lanes=2, n_temporal_planes=4)
 def main(xoffset, yoffset, width, height, serpentine, rotation, pinout, n_planes, n_temporal_planes, n_addr_lines, n_lanes):
     if n_lanes != 2:
-        pixelmap = make_pixelmap_multilane(width, height, n_addr_lines, n_lanes)
-        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines, n_temporal_planes=n_temporal_planes, n_lanes=n_lanes, map=pixelmap)
+        pixelmap = piomatter.make_pixelmap_multilane(width, height, n_addr_lines, n_lanes)
+        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
+                                      n_temporal_planes=n_temporal_planes, rotation=rotation, n_lanes=n_lanes,
+                                      map=pixelmap)
     else:
         geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines, n_temporal_planes=n_temporal_planes, rotation=rotation)
     framebuffer = np.zeros(shape=(geometry.height, geometry.width), dtype=dtype)
