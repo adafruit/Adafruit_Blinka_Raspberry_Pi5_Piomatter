@@ -12,6 +12,34 @@
 
 namespace piomatter {
 
+static int pio_sm_xfer_data_large(PIO pio, int sm, int direction, size_t size,
+                                  uint32_t *databuf) {
+    int r = pio_sm_xfer_data(pio, sm, direction, size, databuf);
+    if (r != -EPERM) {
+        // Kernels that don't support large transfers return EPERM
+        return r;
+    }
+    static bool once = false;
+    if (!once) {
+        once = true;
+        fprintf(stderr,
+                "Transmission limit workaround engaged. May reduce quality of "
+                "output.\nSee https://github.com/raspberrypi/utils/issues/123 "
+                "for details.");
+    }
+    constexpr size_t MAX_XFER = 65532;
+    while (size) {
+        size_t xfersize = std::min(size_t{MAX_XFER}, size);
+        r = pio_sm_xfer_data(pio, sm, direction, xfersize, databuf);
+        if (r) {
+            return r;
+        }
+        size -= xfersize;
+        databuf += xfersize / sizeof(*databuf);
+    }
+    return 0;
+}
+
 static uint64_t monotonicns64() {
     struct timespec tp;
     clock_gettime(CLOCK_MONOTONIC, &tp);
@@ -181,8 +209,8 @@ struct piomatter : piomatter_base {
                 auto dataptr = const_cast<uint32_t *>(&data[0]);
                 // returns err = rp1_ioctl.... which seems to be a negative
                 // errno value
-                int r =
-                    pio_sm_xfer_data(pio, sm, PIO_DIR_TO_SM, datasize, dataptr);
+                int r = pio_sm_xfer_data_large(pio, sm, PIO_DIR_TO_SM, datasize,
+                                               dataptr);
                 if (r != 0) {
                     pending_error_errno.store(-r);
                     printf("xfer_data() returned error %d (%s)\n", r,
