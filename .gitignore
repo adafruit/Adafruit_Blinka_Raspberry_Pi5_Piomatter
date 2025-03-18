@@ -1,3 +1,5 @@
 /*.pio.h
 /build
+/dist
+/docs/api
 *.egg-info

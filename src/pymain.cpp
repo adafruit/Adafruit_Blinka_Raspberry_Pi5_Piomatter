@@ -27,6 +27,8 @@ struct PyPiomatter {
         }
     }
     double fps() const { return matter->fps; }
+    int width() const { return matter->geometry.width; }
+    int height() const { return matter->geometry.height; }
 };
 
 template <typename pinout, typename colorspace>
@@ -288,5 +290,7 @@ data is triple-buffered to prevent tearing.
 )pbdoc")
         .def_property_readonly("fps", &PyPiomatter::fps, R"pbdoc(
 The approximate number of matrix refreshes per second.
-)pbdoc");
+)pbdoc")
+        .def_property_readonly("width", &PyPiomatter::width)
+        .def_property_readonly("height", &PyPiomatter::height);
 }

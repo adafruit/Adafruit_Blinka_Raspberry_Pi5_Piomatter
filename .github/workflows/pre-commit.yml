@@ -19,7 +19,7 @@ jobs:
     - name: Set up repository
       uses: actions/checkout@v4
       with:
-        submodules: false
+        submodules: true
         show-progress: false
         fetch-depth: 1
         persist-credentials: false

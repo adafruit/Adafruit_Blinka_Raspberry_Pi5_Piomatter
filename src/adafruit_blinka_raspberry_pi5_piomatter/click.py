@@ -6,9 +6,39 @@ from collections.abc import Callable
 from typing import Any
 
 import click
+import numpy as np
 
 import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 
+from .pixelmappers import simple_multilane_mapper
+
+
+def make_matrix(*, colorspace):
+    print("make_matrix", colorspace)
+    def do_make_matrix(f):
+        print("do_make_matrix", f)
+        def wrapper(width, height, serpentine, rotation, pinout, n_planes, n_temporal_planes, n_addr_lines, n_lanes, **click_args):
+            if colorspace == piomatter.Colorspace.RGB565:
+                framebuffer = np.zeros((height, width), dtype=np.uint16)
+            elif colorspace == piomatter.Colorspace.RGB888:
+                framebuffer = np.zeros((height, width), dtype=np.uint32)
+            elif colorspace == piomatter.Colorspace.RGB888Packed:
+                framebuffer = np.zeros((height, width, 3), dtype=np.uint8)
+            else:
+                raise ValueError(f"Unsupported colorspace {colorspace!r}")
+
+            if n_lanes != 2:
+                if serpentine:
+                    raise ValueError("Serpentine is only avaialble with 2 lanes")
+                pixelmap = simple_multilane_mapper(width, height, n_addr_lines, n_lanes)
+                geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines, n_temporal_planes=n_temporal_planes, n_lanes=n_lanes, map=pixelmap)
+            else:
+                geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines, n_temporal_planes=n_temporal_planes, rotation=rotation)
+            matrix = piomatter.PioMatter(colorspace=colorspace, pinout=pinout, framebuffer=framebuffer, geometry=geometry)
+
+            return f(matrix=matrix, framebuffer=framebuffer, **click_args)
+        return wrapper
+    return do_make_matrix
 
 class _PybindEnumChoice(click.Choice):
     def __init__(self, enum, case_sensitive=False):
