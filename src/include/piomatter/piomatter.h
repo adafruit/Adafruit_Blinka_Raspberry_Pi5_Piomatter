@@ -57,7 +57,7 @@ static uint64_t monotonicns64() {
 constexpr size_t MAX_XFER = 65532;
 
 struct piomatter_base {
-    piomatter_base() {}
+    piomatter_base(const matrix_geometry &geometry) : geometry{geometry} {}
     piomatter_base(const piomatter_base &) = delete;
     piomatter_base &operator=(const piomatter_base &) = delete;
 
@@ -65,17 +65,18 @@ struct piomatter_base {
     virtual int show() = 0;
 
     double fps;
+    matrix_geometry geometry;
 };
 
 template <class pinout = adafruit_matrix_bonnet_pinout,
           class colorspace = colorspace_rgb888>
-struct piomatter : piomatter_base {
+struct piomatter : public piomatter_base {
     using buffer_type = std::vector<uint32_t>;
     using bufseq_type = std::vector<buffer_type>;
     piomatter(std::span<typename colorspace::data_type const> framebuffer,
               const matrix_geometry &geometry)
-        : framebuffer(framebuffer), geometry{geometry}, converter{},
-          blitter_thread{} {
+        : piomatter_base{geometry},
+          framebuffer(framebuffer), converter{}, blitter_thread{} {
         if (geometry.n_addr_lines > std::size(pinout::PIN_ADDR)) {
             throw std::runtime_error("too many address lines requested");
         }
@@ -240,7 +241,6 @@ struct piomatter : piomatter_base {
     std::span<typename colorspace::data_type const> framebuffer;
     bufseq_type buffers[3];
     buffer_manager manager{};
-    matrix_geometry geometry;
     colorspace converter;
     std::thread blitter_thread;
     std::atomic<int> pending_error_errno;

@@ -1,7 +1,8 @@
 # Available at setup time due to pyproject.toml
-from pybind11.setup_helpers import Pybind11Extension, build_ext
 from setuptools import setup
 from setuptools_scm import get_version
+
+from pybind11.setup_helpers import Pybind11Extension, build_ext
 
 __version__ = get_version()
 

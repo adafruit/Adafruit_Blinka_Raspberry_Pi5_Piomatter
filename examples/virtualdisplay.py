@@ -30,7 +30,6 @@ from pyvirtualdisplay.smartdisplay import SmartDisplay
 
 import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
-from adafruit_blinka_raspberry_pi5_piomatter.pixelmappers import simple_multilane_mapper
 
 
 @click.command
@@ -42,24 +41,18 @@ from adafruit_blinka_raspberry_pi5_piomatter.pixelmappers import simple_multilan
               default=1.0, type=click.FloatRange(min=0.1, max=1.0))
 @click.option("--use-xauth/--no-use-xauth", help="If a Xauthority file should be created",  default=False)
 @piomatter_click.standard_options
+@piomatter_click.make_matrix(colorspace=piomatter.Colorspace.RGB888Packed)
 @click.argument("command", nargs=-1)
-def main(scale, backend, use_xauth, extra_args, rfbport, brightness, width, height, serpentine, rotation, pinout,
-         n_planes, n_temporal_planes, n_addr_lines, n_lanes, command):
+def main(matrix, framebuffer, scale, backend, use_xauth, extra_args, rfbport, brightness, command):
     kwargs = {}
     if backend == "xvnc":
         kwargs['rfbport'] = rfbport
     if extra_args:
         kwargs['extra_args'] = shlex.split(extra_args)
     print("xauth", use_xauth)
-    if n_lanes != 2:
-        pixelmap = simple_multilane_mapper(width, height, n_addr_lines, n_lanes)
-        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
-                                      n_temporal_planes=n_temporal_planes, n_lanes=n_lanes, map=pixelmap)
-    else:
-        geometry = piomatter.Geometry(width=width, height=height, n_planes=n_planes, n_addr_lines=n_addr_lines,
-                                      n_temporal_planes=n_temporal_planes, rotation=rotation)
-    framebuffer = np.zeros(shape=(geometry.height, geometry.width, 3), dtype=np.uint8)
-    matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed, pinout=pinout, framebuffer=framebuffer, geometry=geometry)
+
+    width = matrix.width
+    height = matrix.height
 
     with SmartDisplay(backend=backend, use_xauth=use_xauth, size=(round(width*scale),round(height*scale)), manage_global_env=False, **kwargs) as disp, Popen(command, env=disp.env()) as proc:
             while proc.poll() is None:
