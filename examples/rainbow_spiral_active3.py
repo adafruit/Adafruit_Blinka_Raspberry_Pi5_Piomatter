@@ -30,7 +30,7 @@ pixelmap = simple_multilane_mapper(width, height, n_addr_lines, n_lanes)
 geometry = piomatter.Geometry(width=width, height=height, n_addr_lines=n_addr_lines, n_planes=10, n_temporal_planes=4, map=pixelmap, n_lanes=n_lanes)
 framebuffer = np.asarray(canvas) + 0  # Make a mutable copy
 matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed,
-                             pinout=piomatter.Pinout.Active3,
+                             pinout=piomatter.Pinout.Active3BGR,
                              framebuffer=framebuffer,
                              geometry=geometry)
 
@@ -66,7 +66,7 @@ def darken_color(hex_color, darkness_factor):
 
     return darkened_hex_color
 
-step_count = 4
+step_count = 8
 darkness_factor = 0.5
 
 clearing = False
