@@ -41,8 +41,8 @@ struct adafruit_matrix_bonnet_pinout_bgr {
 };
 
 struct active3_pinout {
-    static constexpr pin_t PIN_RGB[] = {7,  27, 11, 10, 9, 8,  6,  5,  12,
-                                        20, 13, 19, 3,  2, 14, 21, 16, 26};
+    static constexpr pin_t PIN_RGB[] = {11, 27, 7,  8,  9, 10, 12, 5,  6,
+                                        19, 13, 20, 14, 2, 3,  26, 16, 21};
     static constexpr pin_t PIN_ADDR[] = {22, 23, 24, 25, 15};
     static constexpr pin_t PIN_OE = 18;  // /OE: output enable when LOW
     static constexpr pin_t PIN_CLK = 17; // SRCLK: clocks on RISING edge
@@ -60,8 +60,8 @@ struct active3_pinout {
 };
 
 struct active3_pinout_bgr {
-    static constexpr pin_t PIN_RGB[] = {11, 27, 7,  8,  9, 10, 12, 5,  6,
-                                        19, 13, 20, 14, 2, 3,  26, 16, 21};
+    static constexpr pin_t PIN_RGB[] = {7,  27, 11, 10, 9, 8,  6,  5,  12,
+                                        20, 13, 19, 3,  2, 14, 21, 16, 26};
     static constexpr pin_t PIN_ADDR[] = {22, 23, 24, 25, 15};
     static constexpr pin_t PIN_OE = 18;  // /OE: output enable when LOW
     static constexpr pin_t PIN_CLK = 17; // SRCLK: clocks on RISING edge
