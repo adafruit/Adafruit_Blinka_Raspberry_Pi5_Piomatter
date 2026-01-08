@@ -34,7 +34,7 @@ jobs:
       run: git diff > ~/pre-commit.patch
     - name: Upload patch
       if: failure()
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: patch
         path: ~/pre-commit.patch
