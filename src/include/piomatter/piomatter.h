@@ -13,31 +13,17 @@
 namespace piomatter {
 
 static int pio_sm_xfer_data_large(PIO pio, int sm, int direction, size_t size,
-                                  uint32_t *databuf) {
-#if 0
-    // it would be NICE to gracefully fall back to blocked transfer, but sadly
-    // once the large xfer ioctl fails, future small xfers fail too.
-    static enum { UNKNOWN, OK, BAD } large_xfer_status = UNKNOWN;
-    printf("large_xfer_status=%d\n", large_xfer_status);
-    if (large_xfer_status != BAD) {
-        int r = pio_sm_xfer_data(pio, sm, direction, size, databuf);
-        if (large_xfer_status == UNKNOWN && r != 0) {
-            large_xfer_status = BAD;
-            fprintf(stderr,
-                    "Transmission limit workaround engaged. May reduce quality of "
-                    "output.\nSee https://github.com/raspberrypi/utils/issues/123 "
-                    "for details.\n");
-        } else {
-            if (large_xfer_status == UNKNOWN && r == 0) {
-                large_xfer_status = OK;
-            }
-            return r;
-        }
-    }
-#endif
+                                  uint32_t *databuf, size_t align = 0) {
     constexpr size_t MAX_XFER = 65532;
+    // When align > 0, snap chunk sizes down to a multiple of align bytes so
+    // that chunk boundaries fall between address-line groups. This avoids a
+    // micro-pause mid-scan that would cause bright lines on the display.
+    size_t max_chunk = MAX_XFER;
+    if (align > 0) {
+        max_chunk = (MAX_XFER / align) * align;
+    }
     while (size) {
-        size_t xfersize = std::min(size_t{MAX_XFER}, size);
+        size_t xfersize = std::min(max_chunk, size);
         int r = pio_sm_xfer_data(pio, sm, direction, xfersize, databuf);
         if (r != 0) {
             return r;
@@ -217,8 +203,19 @@ struct piomatter : piomatter_base {
                 auto dataptr = const_cast<uint32_t *>(&data[0]);
                 // returns err = rp1_ioctl.... which seems to be a negative
                 // errno value
+                // Align DMA chunk boundaries to address-line groups so that
+                // transfer pauses only occur when OE is inactive. The number
+                // of addresses per chunk must evenly divide n_addr to avoid a
+                // smaller final chunk that causes visible dark lines.
+                size_t n_addr = 1u << geometry.n_addr_lines;
+                size_t addr_size = datasize / n_addr;
+                size_t addrs_per_chunk = MAX_XFER / addr_size;
+                while (addrs_per_chunk > 1 && n_addr % addrs_per_chunk != 0) {
+                    addrs_per_chunk--;
+                }
+                size_t chunk_align = addrs_per_chunk * addr_size;
                 int r = pio_sm_xfer_data_large(pio, sm, PIO_DIR_TO_SM, datasize,
-                                               dataptr);
+                                               dataptr, chunk_align);
                 if (r != 0) {
                     pending_error_errno.store(errno);
                     printf("xfer_data() returned error %d (errno=%s)\n", r,
