@@ -1,5 +1,9 @@
 #pragma once
 
+#include <fstream>
+#include <iostream>
+#include <pthread.h>
+#include <sched.h>
 #include <thread>
 
 #include "hardware/pio.h"
@@ -195,7 +199,29 @@ struct piomatter : piomatter_base {
         pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
     }
 
+    static bool has_isol_cpu_3() {
+        std::string buf;
+        std::ifstream f("/sys/devices/system/cpu/isolated");
+        if (f) {
+            std::getline(f, buf);
+        }
+        return buf.find('3') != std::string::npos;
+    }
+
     void blit_thread() {
+        // Pin to isolated CPU 3 if available (set via isolcpus=3 in
+        // cmdline.txt) to avoid scheduler jitter during DMA transfers.
+        if (has_isol_cpu_3()) {
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(3, &cpuset);
+            pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+        } else {
+            std::cerr
+                << "Suggestion: to improve display update, add\n\tisolcpus=3\n"
+                   "at the end of /boot/firmware/cmdline.txt and reboot.\n";
+        }
+
         int cur_buffer_idx = buffer_manager::no_buffer;
         int buffer_idx;
         int seq_idx = -1;
