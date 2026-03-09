@@ -160,12 +160,11 @@ struct piomatter : piomatter_base {
         sm_config_set_out_shift(&c, /* shift_right= */ false,
                                 /* auto_pull = */ true, 32);
         sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
-        // Due to https://github.com/raspberrypi/utils/issues/116 it's not
-        // possible to keep the RP1 state machine fed at high rates. This target
-        // frequency is approximately the best sustainable clock with current
-        // FW & kernel.
+        // DMA throughput improved by raspberrypi/linux#6994 (merged Aug 2025)
+        // from ~10MB/s to ~27MB/s, allowing higher pixel clocks than the
+        // original 2.7MHz. Requires kernel 6.12.x or later.
         constexpr double target_freq =
-            2700000 * 2; // 2.7MHz pixel clock, 2 PIO cycles per pixel
+            27000000; // 13.5MHz pixel clock, 2 PIO cycles per pixel
         double div = clock_get_hz(clk_sys) / target_freq;
         sm_config_set_clkdiv(&c, div);
         sm_config_set_out_pins(&c, 0, 28);
