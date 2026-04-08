@@ -133,8 +133,7 @@ template <typename pinout>
 void protomatter_render_rgb10(std::vector<uint32_t> &result,
                               const matrix_geometry &matrixmap,
                               const schedule &sched, uint32_t old_active_time,
-                              const uint32_t *pixels,
-                              float brightness = 1.0f) {
+                              const uint32_t *pixels, float brightness = 1.0f) {
     result.clear();
 
     int data_count = 0;

@@ -96,10 +96,9 @@ struct piomatter : piomatter_base {
         auto converted = converter.convert(framebuffer);
         auto old_active_time = geometry.schedules.back().back().active_time;
         for (size_t i = 0; i < geometry.schedules.size(); i++) {
-            protomatter_render_rgb10<pinout>(bufseq[i], geometry,
-                                             geometry.schedules[i],
-                                             old_active_time, converted.data(),
-                                             brightness);
+            protomatter_render_rgb10<pinout>(
+                bufseq[i], geometry, geometry.schedules[i], old_active_time,
+                converted.data(), brightness);
             old_active_time = geometry.schedules[i].back().active_time;
         }
         manager.put_filled_buffer(buffer_idx);
