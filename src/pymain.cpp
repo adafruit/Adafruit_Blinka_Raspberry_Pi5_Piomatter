@@ -28,7 +28,9 @@ struct PyPiomatter {
     }
     double fps() const { return matter->fps; }
     float get_brightness() const { return matter->brightness; }
-    void set_brightness(float b) { matter->brightness = std::max(0.f, std::min(1.f, b)); }
+    void set_brightness(float b) {
+        matter->brightness = std::max(0.f, std::min(1.f, b));
+    }
 };
 
 template <typename pinout, typename colorspace>
@@ -291,7 +293,8 @@ data is triple-buffered to prevent tearing.
         .def_property_readonly("fps", &PyPiomatter::fps, R"pbdoc(
 The approximate number of matrix refreshes per second.
 )pbdoc")
-        .def_property("brightness", &PyPiomatter::get_brightness, &PyPiomatter::set_brightness, R"pbdoc(
+        .def_property("brightness", &PyPiomatter::get_brightness,
+                      &PyPiomatter::set_brightness, R"pbdoc(
 The brightness of the matrix, from 0.0 (off) to 1.0 (full brightness).
 
 Controls the OE (output enable) duty cycle to adjust overall panel brightness.
