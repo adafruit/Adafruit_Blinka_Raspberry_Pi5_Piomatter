@@ -114,7 +114,7 @@ struct piomatter : piomatter_base {
             for (const auto p : pinout::PIN_RGB)
                 pin_deinit_one(p);
 
-            for (size_t i = 0; i < geometry.n_addr_lines; i++) {
+            for (size_t i = 0; i < std::size(pinout::PIN_ADDR); i++) {
                 pin_deinit_one(pinout::PIN_ADDR[i]);
             }
             pio_sm_unclaim(pio, sm);
@@ -179,7 +179,7 @@ struct piomatter : piomatter_base {
         for (const auto p : pinout::PIN_RGB)
             pin_init_one(p);
 
-        for (size_t i = 0; i < geometry.n_addr_lines; i++) {
+        for (size_t i = 0; i < std::size(pinout::PIN_ADDR); i++) {
             pin_init_one(pinout::PIN_ADDR[i]);
         }
     }
