@@ -25,7 +25,6 @@ from subprocess import Popen
 
 import click
 import numpy as np
-from PIL import ImageEnhance
 from pyvirtualdisplay.smartdisplay import SmartDisplay
 
 import adafruit_blinka_raspberry_pi5_piomatter as piomatter
@@ -60,6 +59,7 @@ def main(scale, backend, use_xauth, extra_args, rfbport, brightness, width, heig
                                       n_temporal_planes=n_temporal_planes, rotation=rotation, serpentine=serpentine)
     framebuffer = np.zeros(shape=(geometry.height, geometry.width, 3), dtype=np.uint8)
     matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed, pinout=pinout, framebuffer=framebuffer, geometry=geometry)
+    matrix.brightness = brightness
 
     with SmartDisplay(backend=backend, use_xauth=use_xauth, size=(round(width*scale),round(height*scale)), manage_global_env=False, **kwargs) as disp, Popen(command, env=disp.env()) as proc:
             while proc.poll() is None:
@@ -67,9 +67,6 @@ def main(scale, backend, use_xauth, extra_args, rfbport, brightness, width, heig
 
                 if img is None:
                     continue
-                if brightness != 1.0:
-                    darkener = ImageEnhance.Brightness(img)
-                    img = darkener.enhance(brightness)
                 img = img.resize((width, height))
                 framebuffer[:, :] = np.array(img)
                 matrix.show()
