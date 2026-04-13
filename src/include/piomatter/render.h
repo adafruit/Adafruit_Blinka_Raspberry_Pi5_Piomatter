@@ -133,7 +133,7 @@ template <typename pinout>
 void protomatter_render_rgb10(std::vector<uint32_t> &result,
                               const matrix_geometry &matrixmap,
                               const schedule &sched, uint32_t old_active_time,
-                              const uint32_t *pixels) {
+                              const uint32_t *pixels, float brightness = 1.0f) {
     result.clear();
 
     int data_count = 0;
@@ -154,7 +154,7 @@ void protomatter_render_rgb10(std::vector<uint32_t> &result,
         data_count = n;
     };
 
-    int32_t active_time = old_active_time;
+    int32_t active_time = old_active_time * brightness;
 
     auto do_data_clk_active = [&active_time, &data_count, &result](uint32_t d) {
         bool active = active_time > 0;
@@ -231,7 +231,7 @@ void protomatter_render_rgb10(std::vector<uint32_t> &result,
             do_data_delay(addr_bits | pinout::oe_inactive | pinout::lat_bit,
                           pinout::post_latch_delay);
 
-            active_time = schedule_ent.active_time;
+            active_time = schedule_ent.active_time * brightness;
 
             // with oe inactive, set address bits to illuminate THIS line
             if (addr != prev_addr) {

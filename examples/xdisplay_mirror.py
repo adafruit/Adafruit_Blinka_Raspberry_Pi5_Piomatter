@@ -20,7 +20,7 @@ This example command will mirror a 128x128 pixel square from the top left of the
 
 import click
 import numpy as np
-from PIL import Image, ImageEnhance, ImageGrab
+from PIL import Image, ImageGrab
 
 import adafruit_blinka_raspberry_pi5_piomatter as piomatter
 import adafruit_blinka_raspberry_pi5_piomatter.click as piomatter_click
@@ -57,6 +57,7 @@ def main(width, height, serpentine, rotation, pinout, n_planes,
     framebuffer = np.zeros(shape=(geometry.height, geometry.width, 3), dtype=np.uint8)
     matrix = piomatter.PioMatter(colorspace=piomatter.Colorspace.RGB888Packed, pinout=pinout, framebuffer=framebuffer,
                                  geometry=geometry)
+    matrix.brightness = brightness
 
     if mirror_region:
         mirror_region = tuple(int(_) for _ in mirror_region.split(','))
@@ -71,9 +72,6 @@ def main(width, height, serpentine, rotation, pinout, n_planes,
             img = img.crop((mirror_region[0], mirror_region[1],    # left,top
                             mirror_region[0] + mirror_region[2],   # right
                             mirror_region[1] + mirror_region[3]))  # bottom
-        if brightness != 1.0:
-            darkener = ImageEnhance.Brightness(img)
-            img = darkener.enhance(brightness)
         img = img.resize((width, height), RESAMPLE_MAP[resample_method])
 
         framebuffer[:, :] = np.array(img)
