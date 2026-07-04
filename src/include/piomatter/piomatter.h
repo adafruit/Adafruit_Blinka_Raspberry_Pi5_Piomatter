@@ -1,5 +1,9 @@
 #pragma once
 
+#include <atomic>
+#include <chrono>
+#include <condition_variable>
+#include <mutex>
 #include <thread>
 
 #include "hardware/pio.h"
@@ -60,8 +64,26 @@ struct piomatter_base {
     virtual ~piomatter_base() {}
     virtual int show() = 0;
 
+    // Blocks until at least `target` refresh passes have completed, then
+    // returns the current frame_count. Returns early (with the count short
+    // of target) if the display stops refreshing, so callers cannot hang
+    // across shutdown or a stalled transfer.
+    uint64_t wait_for_frame(uint64_t target) {
+        std::unique_lock<std::mutex> lk(frame_mutex);
+        while (frame_count.load() < target) {
+            if (frame_cv.wait_for(lk, std::chrono::milliseconds(100)) ==
+                std::cv_status::timeout) {
+                break;
+            }
+        }
+        return frame_count.load();
+    }
+
     double fps;
     float brightness = 1.0f;
+    std::atomic<uint64_t> frame_count{0};
+    std::mutex frame_mutex;
+    std::condition_variable frame_cv;
 };
 
 template <class pinout = adafruit_matrix_bonnet_pinout,
@@ -237,6 +259,11 @@ struct piomatter : piomatter_base {
                     fps = 1e9 / (t1 - t0);
                 }
                 t0 = t1;
+                {
+                    std::lock_guard<std::mutex> lk(frame_mutex);
+                    frame_count.fetch_add(1, std::memory_order_release);
+                }
+                frame_cv.notify_all();
             } else {
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }

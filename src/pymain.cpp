@@ -27,6 +27,11 @@ struct PyPiomatter {
         }
     }
     double fps() const { return matter->fps; }
+    uint64_t frame_number() const { return matter->frame_count.load(); }
+    uint64_t wait_for_frame(uint64_t target) {
+        py::gil_scoped_release release;
+        return matter->wait_for_frame(target);
+    }
     float get_brightness() const { return matter->brightness; }
     void set_brightness(float b) {
         matter->brightness = std::max(0.f, std::min(1.f, b));
@@ -305,6 +310,34 @@ data is triple-buffered to prevent tearing.
 )pbdoc")
         .def_property_readonly("fps", &PyPiomatter::fps, R"pbdoc(
 The approximate number of matrix refreshes per second.
+)pbdoc")
+        .def_property_readonly("frame_number", &PyPiomatter::frame_number,
+                               R"pbdoc(
+The number of refresh passes completed since the matrix was created.
+
+Increments once per panel refresh (at the rate reported by ``fps``).
+Together with `wait_for_frame` this allows animation to be synchronised
+to the panel refresh.
+)pbdoc")
+        .def("wait_for_frame", &PyPiomatter::wait_for_frame,
+             py::arg("target"), R"pbdoc(
+Block until ``frame_number`` reaches ``target``, then return it.
+
+Releases the GIL while waiting. Returns immediately if ``target`` has
+already been reached, and returns early (with the count still short of
+``target``) if the display stops refreshing.
+
+To animate at an exact divisor of the refresh rate::
+
+    target = matrix.frame_number + 3
+    while True:
+        draw_next_frame()
+        matrix.show()
+        matrix.wait_for_frame(target)
+        target += 3   # one update every 3 refreshes
+
+Each frame is then displayed for exactly the same number of refresh
+passes, eliminating the judder caused by unsynchronised updates.
 )pbdoc")
         .def_property("brightness", &PyPiomatter::get_brightness,
                       &PyPiomatter::set_brightness, R"pbdoc(
