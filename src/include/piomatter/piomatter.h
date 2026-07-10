@@ -1,5 +1,9 @@
 #pragma once
 
+#include <fstream>
+#include <iostream>
+#include <pthread.h>
+#include <sched.h>
 #include <thread>
 
 #include "hardware/pio.h"
@@ -181,7 +185,48 @@ struct piomatter : piomatter_base {
         pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, false);
     }
 
+    // Return the first isolated CPU number from /sys/devices/system/cpu/isolated,
+    // or -1 if none are isolated. Handles single CPUs ("3"), comma-separated
+    // lists ("1,3") and ranges ("2-3"); the leading entry is used either way.
+    static int find_isolated_cpu() {
+        std::ifstream f("/sys/devices/system/cpu/isolated");
+        if (!f) {
+            return -1;
+        }
+        std::string buf;
+        std::getline(f, buf);
+        if (buf.empty()) {
+            return -1;
+        }
+        std::string first = buf.substr(0, buf.find_first_of(",-"));
+        try {
+            return std::stoi(first);
+        } catch (...) {
+            return -1;
+        }
+    }
+
     void blit_thread() {
+        // Pin to an isolated CPU if available (set via isolcpus=N in
+        // cmdline.txt) to avoid scheduler jitter during DMA transfers.
+        int cpu = find_isolated_cpu();
+        if (cpu >= 0) {
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(cpu, &cpuset);
+            pthread_setaffinity_np(pthread_self(), sizeof(cpuset), &cpuset);
+        } else {
+            // Print once per process even when multiple piomatter instances
+            // are created.
+            static bool warned = false;
+            if (!warned) {
+                warned = true;
+                std::cerr
+                    << "Suggestion: to improve display update, add\n\tisolcpus=3\n"
+                       "(or another core) at the end of /boot/firmware/cmdline.txt and reboot.\n";
+            }
+        }
+
         int cur_buffer_idx = buffer_manager::no_buffer;
         int buffer_idx;
         int seq_idx = -1;
