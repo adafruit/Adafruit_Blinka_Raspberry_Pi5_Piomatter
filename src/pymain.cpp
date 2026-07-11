@@ -36,7 +36,8 @@ struct PyPiomatter {
 template <typename pinout, typename colorspace>
 std::unique_ptr<PyPiomatter>
 make_piomatter_pc(py::buffer buffer,
-                  const piomatter::matrix_geometry &geometry) {
+                  const piomatter::matrix_geometry &geometry,
+                  uint32_t pixel_clock_hz) {
     using cls = piomatter::piomatter<pinout, colorspace>;
     using data_type = colorspace::data_type;
 
@@ -66,7 +67,8 @@ make_piomatter_pc(py::buffer buffer,
     std::span<data_type> framebuffer(reinterpret_cast<data_type *>(info.ptr),
                                      data_size_in_bytes / sizeof(data_type));
     return std::make_unique<PyPiomatter>(
-        buffer, std::move(std::make_unique<cls>(framebuffer, geometry)));
+        buffer, std::move(std::make_unique<cls>(framebuffer, geometry,
+                                                pixel_clock_hz)));
 }
 
 enum Colorspace { RGB565, RGB888, RGB888Packed };
@@ -81,17 +83,18 @@ enum Pinout {
 template <class pinout>
 std::unique_ptr<PyPiomatter>
 make_piomatter_p(Colorspace c, py::buffer buffer,
-                 const piomatter::matrix_geometry &geometry) {
+                 const piomatter::matrix_geometry &geometry,
+                 uint32_t pixel_clock_hz) {
     switch (c) {
     case RGB565:
         return make_piomatter_pc<pinout, piomatter::colorspace_rgb565>(
-            buffer, geometry);
+            buffer, geometry, pixel_clock_hz);
     case RGB888:
         return make_piomatter_pc<pinout, piomatter::colorspace_rgb888>(
-            buffer, geometry);
+            buffer, geometry, pixel_clock_hz);
     case RGB888Packed:
         return make_piomatter_pc<pinout, piomatter::colorspace_rgb888_packed>(
-            buffer, geometry);
+            buffer, geometry, pixel_clock_hz);
     }
     throw std::runtime_error(py::str("Invalid colorspace {!r}")
                                  .attr("format")(c)
@@ -100,19 +103,21 @@ make_piomatter_p(Colorspace c, py::buffer buffer,
 
 std::unique_ptr<PyPiomatter>
 make_piomatter(Colorspace c, Pinout p, py::buffer buffer,
-               const piomatter::matrix_geometry &geometry) {
+               const piomatter::matrix_geometry &geometry,
+               uint32_t pixel_clock_hz) {
     switch (p) {
     case AdafruitMatrixBonnet:
         return make_piomatter_p<piomatter::adafruit_matrix_bonnet_pinout>(
-            c, buffer, geometry);
+            c, buffer, geometry, pixel_clock_hz);
     case AdafruitMatrixBonnetBGR:
         return make_piomatter_p<piomatter::adafruit_matrix_bonnet_pinout_bgr>(
-            c, buffer, geometry);
+            c, buffer, geometry, pixel_clock_hz);
     case Active3:
-        return make_piomatter_p<piomatter::active3_pinout>(c, buffer, geometry);
+        return make_piomatter_p<piomatter::active3_pinout>(c, buffer, geometry,
+                                                           pixel_clock_hz);
     case Active3BGR:
-        return make_piomatter_p<piomatter::active3_pinout_bgr>(c, buffer,
-                                                               geometry);
+        return make_piomatter_p<piomatter::active3_pinout_bgr>(
+            c, buffer, geometry, pixel_clock_hz);
     }
     throw std::runtime_error(py::str("Invalid pinout {!r}")
                                  .attr("format")(p)
@@ -280,9 +285,17 @@ value must be one of the `Pinout` constants.
 
 ``geometry`` controls the size and shape of the panel. The value must be a `Geometry`
 instance.
+
+``pixel_clock_hz`` sets the rate pixel data is clocked out to the panel, in Hz.
+The default (13.5MHz) requires kernel 6.12.x or later and works with short,
+well-shielded connections. Long ribbon cables or several chained panels can
+degrade signal integrity at this rate, which shows up as wavy, shifted or
+discoloured lines; if you see that, lower the value (for example 5000000)
+until the image is stable. Lower values reduce the maximum refresh rate.
 )pbdoc")
         .def(py::init(&make_piomatter), py::arg("colorspace"),
-             py::arg("pinout"), py::arg("framebuffer"), py::arg("geometry"))
+             py::arg("pinout"), py::arg("framebuffer"), py::arg("geometry"),
+             py::arg("pixel_clock_hz") = piomatter::DEFAULT_PIXEL_CLOCK_HZ)
         .def("show", &PyPiomatter::show, R"pbdoc(
 Update the displayed image
 

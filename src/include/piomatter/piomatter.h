@@ -42,6 +42,16 @@ static uint64_t monotonicns64() {
 
 constexpr size_t MAX_XFER = 65532;
 
+// DMA throughput improved by raspberrypi/linux#6994 (merged Aug 2025)
+// from ~10MB/s to ~27MB/s, allowing higher pixel clocks than the
+// original 2.7MHz. Requires kernel 6.12.x or later.
+//
+// Not every setup is stable at the default rate: long ribbon cables or
+// multiple chained panels can degrade signal integrity, showing up as
+// wavy, shifted or discoloured lines. In that case pass a lower
+// pixel_clock_hz when constructing the matrix.
+constexpr uint32_t DEFAULT_PIXEL_CLOCK_HZ = 13500000;
+
 struct piomatter_base {
     piomatter_base() {}
     piomatter_base(const piomatter_base &) = delete;
@@ -60,11 +70,15 @@ struct piomatter : piomatter_base {
     using buffer_type = std::vector<uint32_t>;
     using bufseq_type = std::vector<buffer_type>;
     piomatter(std::span<typename colorspace::data_type const> framebuffer,
-              const matrix_geometry &geometry)
-        : framebuffer(framebuffer), geometry{geometry}, converter{},
-          blitter_thread{} {
+              const matrix_geometry &geometry,
+              uint32_t pixel_clock_hz = DEFAULT_PIXEL_CLOCK_HZ)
+        : framebuffer(framebuffer), geometry{geometry},
+          pixel_clock_hz{pixel_clock_hz}, converter{}, blitter_thread{} {
         if (geometry.n_addr_lines > std::size(pinout::PIN_ADDR)) {
             throw std::runtime_error("too many address lines requested");
+        }
+        if (pixel_clock_hz == 0) {
+            throw std::runtime_error("pixel_clock_hz must be nonzero");
         }
         program_init();
         blitter_thread = std::move(std::thread{&piomatter::blit_thread, this});
@@ -147,11 +161,8 @@ struct piomatter : piomatter_base {
         sm_config_set_out_shift(&c, /* shift_right= */ false,
                                 /* auto_pull = */ true, 32);
         sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
-        // DMA throughput improved by raspberrypi/linux#6994 (merged Aug 2025)
-        // from ~10MB/s to ~27MB/s, allowing higher pixel clocks than the
-        // original 2.7MHz. Requires kernel 6.12.x or later.
-        constexpr double target_freq =
-            27000000; // 13.5MHz pixel clock, 2 PIO cycles per pixel
+        const double target_freq =
+            (double)pixel_clock_hz * CLOCKS_PER_DATA; // 2 PIO cycles per pixel
         double div = clock_get_hz(clk_sys) / target_freq;
         sm_config_set_clkdiv(&c, div);
         sm_config_set_out_pins(&c, 0, 28);
@@ -238,6 +249,7 @@ struct piomatter : piomatter_base {
     bufseq_type buffers[3];
     buffer_manager manager{};
     matrix_geometry geometry;
+    uint32_t pixel_clock_hz = DEFAULT_PIXEL_CLOCK_HZ;
     colorspace converter;
     std::thread blitter_thread;
     std::atomic<int> pending_error_errno;
